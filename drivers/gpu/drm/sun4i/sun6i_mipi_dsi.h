@@ -13,6 +13,8 @@
 #include <drm/drm_encoder.h>
 #include <drm/drm_mipi_dsi.h>
 
+#include <linux/regulator/consumer.h>
+
 #define SUN6I_DSI_TCON_DIV	4
 
 struct sun6i_dsi {
