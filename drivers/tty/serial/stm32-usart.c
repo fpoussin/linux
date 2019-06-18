@@ -1040,7 +1040,6 @@ static int stm32_usart_init_port(struct stm32_port *stm32port,
 	port->fifosize	= stm32port->info->cfg.fifosize;
 	port->has_sysrq = IS_ENABLED(CONFIG_SERIAL_STM32_CONSOLE);
 	port->irq = ret;
-	port->rs485_config = stm32_usart_config_rs485;
 
 	port->rs485_config = stm32_usart_config_rs485;
 
