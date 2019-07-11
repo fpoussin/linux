@@ -86,6 +86,9 @@
 			data-active = <1>;  /* Active high */
 			pclk-sample = <1>;  /* Rising */
 		};
+	};
+};
+
 &de {
 	status = "okay";
 };
