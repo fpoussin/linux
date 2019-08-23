@@ -282,4 +282,11 @@ config DRM_PANEL_TRULY_NT35597_WQXGA
 	help
 	  Say Y here if you want to enable support for Truly NT35597 WQXGA Dual DSI
 	  Video Mode panel
+	  
+config DRM_PANEL_WINSTAR_WF50DSYA3MNN0
+	tristate "Winstar WF50DSYA3MNN0 panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	help
+	  Say Y here if you want to enable support for Winstar WF50DSYA3MNN0 panel
 endmenu
