@@ -53,6 +53,12 @@ config MACH_SUN9I
 	default ARCH_SUNXI
 	select ARM_GIC
 
+config MACH_SUN50I
+        bool "Allwinner A64 (sun50i) SoCs support"
+        default ARCH_SUNXI
+        select ARM_GIC
+        select ARM_PSCI
+
 config ARCH_SUNXI_MC_SMP
 	bool
 	depends on SMP
