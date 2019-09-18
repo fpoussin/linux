@@ -213,12 +213,17 @@ static void stm32_usart_receive_chars(struct uart_port *port, bool threaded)
 {
 	struct tty_port *tport = &port->state->port;
 	struct stm32_port *stm32_port = to_stm32_port(port);
-	const struct stm32_usart_offsets *ofs = &stm32_port->info->ofs;
-	unsigned long c;
+	struct stm32_usart_offsets *ofs = &stm32_port->info->ofs;
+	unsigned long c, flags;
 	u32 sr;
 	char flag;
 
 	spin_lock(&port->lock);
+
+	if (threaded)
+		spin_lock_irqsave(&port->lock, flags);
+	else
+		spin_lock(&port->lock);
 
 	while (stm32_usart_pending_rx(port, &sr, &stm32_port->last_res,
 				      threaded)) {
@@ -275,7 +280,10 @@ static void stm32_usart_receive_chars(struct uart_port *port, bool threaded)
 		uart_insert_char(port, sr, USART_SR_ORE, c, flag);
 	}
 
-	spin_unlock(&port->lock);
+	if (threaded)
+		spin_unlock_irqrestore(&port->lock, flags);
+	else
+		spin_unlock(&port->lock);
 
 	tty_flip_buffer_push(tport);
 }
@@ -500,8 +508,6 @@ static irqreturn_t stm32_usart_threaded_interrupt(int irq, void *ptr)
 
 	if (stm32_port->rx_ch)
 		stm32_usart_receive_chars(port, true);
-
-	spin_unlock(&port->lock);
 
 	return IRQ_HANDLED;
 }
