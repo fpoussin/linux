@@ -218,8 +218,6 @@ static void stm32_usart_receive_chars(struct uart_port *port, bool threaded)
 	u32 sr;
 	char flag;
 
-	spin_lock(&port->lock);
-
 	if (threaded)
 		spin_lock_irqsave(&port->lock, flags);
 	else
@@ -917,7 +915,7 @@ static void stm32_usart_set_termios(struct uart_port *port,
 		cr1 &= ~(USART_CR1_DEDT_MASK | USART_CR1_DEAT_MASK);
 	}
 
-	/* Configure wake up from low power on start bit detection */
+	/* Enable wake up from low power on start bit detection */
 	if (stm32_port->wakeirq > 0) {
 		cr3 &= ~USART_CR3_WUS_MASK;
 		cr3 |= USART_CR3_WUS_START_BIT;
@@ -1521,16 +1519,11 @@ static void __maybe_unused stm32_usart_serial_en_wakeup(struct uart_port *port,
 	 * "enable", disable low-power wake-up and wake-up irq otherwise
 	 */
 	if (enable) {
-		stm32_usart_clr_bits(port, ofs->cr1, BIT(cfg->uart_enable_bit));
 		stm32_usart_set_bits(port, ofs->cr1, USART_CR1_UESM);
-		val = readl_relaxed(port->membase + ofs->cr3);
-		val &= ~USART_CR3_WUS_MASK;
-		/* Enable Wake up interrupt from low power on start bit */
-		val |= USART_CR3_WUS_START_BIT | USART_CR3_WUFIE;
-		writel_relaxed(val, port->membase + ofs->cr3);
-		stm32_usart_set_bits(port, ofs->cr1, BIT(cfg->uart_enable_bit));
+		stm32_usart_set_bits(port, ofs->cr3, USART_CR3_WUFIE);
 	} else {
 		stm32_usart_clr_bits(port, ofs->cr1, USART_CR1_UESM);
+		stm32_usart_clr_bits(port, ofs->cr3, USART_CR3_WUFIE);
 	}
 }
 
