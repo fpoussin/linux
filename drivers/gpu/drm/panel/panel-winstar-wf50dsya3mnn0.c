@@ -4,7 +4,6 @@
  * Based on Maxime Ripard's ILI9881C module
  */
 
-#include <linux/backlight.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -26,7 +25,6 @@ struct wf50dsya3mnn0 {
 	struct drm_panel	panel;
 	struct mipi_dsi_device	*dsi;
 
-	struct backlight_device *backlight;
 	struct regulator	*power;
 	struct gpio_desc	*reset;
 };
@@ -68,9 +66,6 @@ struct wf50dsya3mnn0_instr {
 	}
 
 static const struct wf50dsya3mnn0_instr wf50dsya3mnn0_init[] = {
-
-  DSI_COMMAND(0x00, 0x00), // Noop
-
   DSI_SWITCH_PAGE(3),
 
   //GIP_1
@@ -336,10 +331,10 @@ static int wf50dsya3mnn0_prepare(struct drm_panel *panel)
 
 	/* And reset it */
 	gpiod_set_value(ctx->reset, 1);
-	msleep(20);
+	msleep(1);
 
 	gpiod_set_value(ctx->reset, 0);
-	msleep(20);
+	msleep(10);
 
 	for (i = 0; i < ARRAY_SIZE(wf50dsya3mnn0_init); i++) {
 		const struct wf50dsya3mnn0_instr *instr = &wf50dsya3mnn0_init[i];
@@ -363,6 +358,7 @@ static int wf50dsya3mnn0_prepare(struct drm_panel *panel)
 		return ret;
 
 	ret = mipi_dsi_dcs_exit_sleep_mode(ctx->dsi);
+	msleep(120);
 	if (ret)
 		return ret;
 
@@ -373,10 +369,7 @@ static int wf50dsya3mnn0_enable(struct drm_panel *panel)
 {
 	struct wf50dsya3mnn0 *ctx = panel_to_wf50dsya3mnn0(panel);
 
-	msleep(120);
-
 	mipi_dsi_dcs_set_display_on(ctx->dsi);
-	backlight_enable(ctx->backlight);
 
 	return 0;
 }
@@ -385,7 +378,6 @@ static int wf50dsya3mnn0_disable(struct drm_panel *panel)
 {
 	struct wf50dsya3mnn0 *ctx = panel_to_wf50dsya3mnn0(panel);
 
-	backlight_disable(ctx->backlight);
 	return mipi_dsi_dcs_set_display_off(ctx->dsi);
 }
 
@@ -401,27 +393,27 @@ static int wf50dsya3mnn0_unprepare(struct drm_panel *panel)
 }
 
 static const struct drm_display_mode panel_default_mode = {
-	.clock		= 62000,
+	.clock		= 60000,
 	.vrefresh	= 60,
 
 	.hdisplay	= 720,
-	.hsync_start	= 720 + 10,
-	.hsync_end	= 720 + 10 + 20,
-	.htotal		= 720 + 10 + 20 + 30,
+	.hsync_start	= 720 + 2,
+	.hsync_end	= 720 + 2 + 12,
+	.htotal		= 720 + 2 + 12 + 18,
 
 	.vdisplay	= 1280,
-	.vsync_start	= 1280 + 10,
-	.vsync_end	= 1280 + 10 + 10,
-	.vtotal		= 1280 + 10 + 10 + 20,
+	.vsync_start	= 1280 + 2,
+	.vsync_end	= 1280 + 2 + 14,
+	.vtotal		= 1280 + 2 + 14 + 8,
 };
 
-static int wf50dsya3mnn0_get_modes(struct drm_panel *panel)
+static int wf50dsya3mnn0_get_modes(struct drm_panel *panel,
+			      struct drm_connector *connector)
 {
-	struct drm_connector *connector = panel->connector;
 	struct wf50dsya3mnn0 *ctx = panel_to_wf50dsya3mnn0(panel);
 	struct drm_display_mode *mode;
 
-	mode = drm_mode_duplicate(panel->drm, &panel_default_mode);
+	mode = drm_mode_duplicate(connector->dev, &panel_default_mode);
 	if (!mode) {
 		dev_err(&ctx->dsi->dev, "failed to add mode %ux%ux@%u\n",
 			panel_default_mode.hdisplay,
@@ -435,8 +427,8 @@ static int wf50dsya3mnn0_get_modes(struct drm_panel *panel)
 	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
 	drm_mode_probed_add(connector, mode);
 
-	panel->connector->display_info.width_mm = 62;
-	panel->connector->display_info.height_mm = 110;
+	connector->display_info.width_mm = 62;
+	connector->display_info.height_mm = 110;
 
 	return 1;
 }
@@ -451,7 +443,6 @@ static const struct drm_panel_funcs wf50dsya3mnn0_funcs = {
 
 static int wf50dsya3mnn0_dsi_probe(struct mipi_dsi_device *dsi)
 {
-	struct device_node *np;
 	struct wf50dsya3mnn0 *ctx;
 	int ret;
 
@@ -461,9 +452,8 @@ static int wf50dsya3mnn0_dsi_probe(struct mipi_dsi_device *dsi)
 	mipi_dsi_set_drvdata(dsi, ctx);
 	ctx->dsi = dsi;
 
-	drm_panel_init(&ctx->panel);
-	ctx->panel.dev = &dsi->dev;
-	ctx->panel.funcs = &wf50dsya3mnn0_funcs;
+	drm_panel_init(&ctx->panel, &dsi->dev, &wf50dsya3mnn0_funcs,
+		       DRM_MODE_CONNECTOR_DSI);
 
 	ctx->power = devm_regulator_get(&dsi->dev, "power");
 	if (IS_ERR(ctx->power)) {
@@ -477,14 +467,9 @@ static int wf50dsya3mnn0_dsi_probe(struct mipi_dsi_device *dsi)
 		return PTR_ERR(ctx->reset);
 	}
 
-	np = of_parse_phandle(dsi->dev.of_node, "backlight", 0);
-	if (np) {
-		ctx->backlight = of_find_backlight_by_node(np);
-		of_node_put(np);
-
-		if (!ctx->backlight)
-			return -EPROBE_DEFER;
-	}
+	ret = drm_panel_of_backlight(&ctx->panel);
+	if (ret)
+		return ret;
 
 	ret = drm_panel_add(&ctx->panel);
 	if (ret < 0)
@@ -503,9 +488,6 @@ static int wf50dsya3mnn0_dsi_remove(struct mipi_dsi_device *dsi)
 
 	mipi_dsi_detach(dsi);
 	drm_panel_remove(&ctx->panel);
-
-	if (ctx->backlight)
-		put_device(&ctx->backlight->dev);
 
 	return 0;
 }
