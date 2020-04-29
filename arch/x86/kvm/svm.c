@@ -1336,7 +1336,7 @@ static __init void svm_adjust_mmio_mask(void)
 	 */
 	mask = (mask_bit < 52) ? rsvd_bits(mask_bit, 51) | PT_PRESENT_MASK : 0;
 
-	kvm_mmu_set_mmio_spte_mask(mask, PT_WRITABLE_MASK | PT_USER_MASK);
+	kvm_mmu_set_mmio_spte_mask(mask, mask);
 }
 
 static __init int svm_hardware_setup(void)
@@ -1917,6 +1917,10 @@ static void __unregister_enc_region_locked(struct kvm *kvm,
 static struct kvm *svm_vm_alloc(void)
 {
 	struct kvm_svm *kvm_svm = vzalloc(sizeof(struct kvm_svm));
+
+	if (!kvm_svm)
+		return NULL;
+
 	return &kvm_svm->kvm;
 }
 
