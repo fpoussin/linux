@@ -1654,8 +1654,10 @@ static int stm32_spi_transfer_one(struct spi_master *master,
 	int ret;
 
 	/* Don't do anything on 0 bytes transfers */
-	if (transfer->len == 0)
-		return 0;
+	if (transfer->len == 0) {
+		spi->xfer_status = 0;
+		goto finalize;
+	}
 
 	spi->tx_buf = transfer->tx_buf;
 	spi->rx_buf = transfer->rx_buf;
@@ -1701,6 +1703,7 @@ static int stm32_spi_transfer_one(struct spi_master *master,
 
 	spi->cfg->disable(spi);
 
+finalize:
 	spi_finalize_current_transfer(master);
 
 	return spi->xfer_status;
