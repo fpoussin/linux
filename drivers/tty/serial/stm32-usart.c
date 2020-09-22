@@ -388,8 +388,11 @@ static void stm32_usart_transmit_chars_dma(struct uart_port *port)
 					   DMA_MEM_TO_DEV,
 					   DMA_PREP_INTERRUPT);
 
-	if (!desc)
-		goto fallback_err;
+	if (!desc) {
+		for (i = count; i > 0; i--)
+			stm32_usart_transmit_chars_pio(port);
+		return;
+	}
 
 	desc->callback = stm32_usart_tx_dma_complete;
 	desc->callback_param = port;
@@ -499,6 +502,8 @@ static irqreturn_t stm32_usart_threaded_interrupt(int irq, void *ptr)
 
 	if (stm32_port->rx_ch)
 		stm32_usart_receive_chars(port, true);
+
+	spin_unlock(&port->lock);
 
 	return IRQ_HANDLED;
 }
@@ -654,10 +659,21 @@ static int stm32_usart_startup(struct uart_port *port)
 
 	/* RX FIFO Flush */
 	if (ofs->rqr != UNDEF_REG)
-		writel_relaxed(USART_RQR_RXFRQ, port->membase + ofs->rqr);
+		stm32_usart_set_bits(port, ofs->rqr, USART_RQR_RXFRQ);
 
-	/* RX enabling */
-	val = stm32_port->cr1_irq | USART_CR1_RE | BIT(cfg->uart_enable_bit);
+	/* Tx and RX FIFO configuration */
+	if (stm32_port->fifoen) {
+		val = readl_relaxed(port->membase + ofs->cr3);
+		val &= ~(USART_CR3_TXFTCFG_MASK | USART_CR3_RXFTCFG_MASK);
+		val |= USART_CR3_TXFTCFG_HALF << USART_CR3_TXFTCFG_SHIFT;
+		val |= USART_CR3_RXFTCFG_HALF << USART_CR3_RXFTCFG_SHIFT;
+		writel_relaxed(val, port->membase + ofs->cr3);
+	}
+
+	/* RX FIFO enabling */
+	val = stm32_port->cr1_irq | USART_CR1_RE;
+	if (stm32_port->fifoen)
+		val |= USART_CR1_FIFOEN;
 	stm32_usart_set_bits(port, ofs->cr1, val);
 
 	return 0;
@@ -833,6 +849,12 @@ static void stm32_usart_set_termios(struct uart_port *port,
 		port->status |= UPSTAT_AUTOCTS | UPSTAT_AUTORTS;
 		cr3 |= USART_CR3_CTSE | USART_CR3_RTSE;
 	}
+
+	/* Handle modem control interrupts */
+	if (UART_ENABLE_MS(port, termios->c_cflag))
+		stm32_usart_enable_ms(port);
+	else
+		stm32_usart_disable_ms(port);
 
 	usartdiv = DIV_ROUND_CLOSEST(port->uartclk, baud);
 
@@ -1012,6 +1034,8 @@ static int stm32_usart_init_port(struct stm32_port *stm32port,
 	port->fifosize	= stm32port->info->cfg.fifosize;
 	port->has_sysrq = IS_ENABLED(CONFIG_SERIAL_STM32_CONSOLE);
 	port->irq = ret;
+	port->rs485_config = stm32_usart_config_rs485;
+
 	port->rs485_config = stm32_usart_config_rs485;
 
 	ret = stm32_usart_init_rs485(port, pdev);
@@ -1274,6 +1298,10 @@ static int stm32_usart_serial_probe(struct platform_device *pdev)
 		device_set_wakeup_enable(&pdev->dev, false);
 	}
 
+	ret = uart_add_one_port(&stm32_usart_driver, &stm32port->port);
+	if (ret)
+		goto err_wirq;
+
 	ret = stm32_usart_of_dma_rx_probe(stm32port, pdev);
 	if (ret)
 		dev_info(&pdev->dev, "interrupt mode used for rx (no dma)\n");
@@ -1498,11 +1526,16 @@ static void __maybe_unused stm32_usart_serial_en_wakeup(struct uart_port *port,
 	 * "enable", disable low-power wake-up and wake-up irq otherwise
 	 */
 	if (enable) {
+		stm32_usart_clr_bits(port, ofs->cr1, BIT(cfg->uart_enable_bit));
 		stm32_usart_set_bits(port, ofs->cr1, USART_CR1_UESM);
-		stm32_usart_set_bits(port, ofs->cr3, USART_CR3_WUFIE);
+		val = readl_relaxed(port->membase + ofs->cr3);
+		val &= ~USART_CR3_WUS_MASK;
+		/* Enable Wake up interrupt from low power on start bit */
+		val |= USART_CR3_WUS_START_BIT | USART_CR3_WUFIE;
+		writel_relaxed(val, port->membase + ofs->cr3);
+		stm32_usart_set_bits(port, ofs->cr1, BIT(cfg->uart_enable_bit));
 	} else {
 		stm32_usart_clr_bits(port, ofs->cr1, USART_CR1_UESM);
-		stm32_usart_clr_bits(port, ofs->cr3, USART_CR3_WUFIE);
 	}
 }
 
