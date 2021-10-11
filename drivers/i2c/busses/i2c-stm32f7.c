@@ -2330,9 +2330,8 @@ stm32f7_i2c_regs_backup(struct stm32f7_i2c_dev *i2c_dev)
 {
 	struct stm32f7_i2c_regs *backup_regs = &i2c_dev->backup_regs;
 
-	ret = pm_runtime_resume_and_get(i2c_dev->dev);
-	if (ret < 0)
-		return ret;
+	if (pm_runtime_resume_and_get(i2c_dev->dev) < 0)
+		return;
 
 	backup_regs->cr1 = readl_relaxed(i2c_dev->base + STM32F7_I2C_CR1);
 	backup_regs->cr2 = readl_relaxed(i2c_dev->base + STM32F7_I2C_CR2);
@@ -2348,9 +2347,8 @@ stm32f7_i2c_regs_restore(struct stm32f7_i2c_dev *i2c_dev)
 	u32 cr1;
 	struct stm32f7_i2c_regs *backup_regs = &i2c_dev->backup_regs;
 
-	ret = pm_runtime_resume_and_get(i2c_dev->dev);
-	if (ret < 0)
-		return ret;
+	if (pm_runtime_resume_and_get(i2c_dev->dev) < 0)
+		return;
 
 	cr1 = readl_relaxed(i2c_dev->base + STM32F7_I2C_CR1);
 	if (cr1 & STM32F7_I2C_CR1_PE)
