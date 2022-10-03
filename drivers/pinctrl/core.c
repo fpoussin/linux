@@ -117,6 +117,9 @@ struct pinctrl_dev *get_pinctrl_dev_from_devname(const char *devname)
 
 	return NULL;
 }
+#if IS_ENABLED(CONFIG_PINCTRL_SUNXI_DEBUGFS)
+EXPORT_SYMBOL_GPL(get_pinctrl_dev_from_devname);
+#endif
 
 struct pinctrl_dev *get_pinctrl_dev_from_of_node(struct device_node *np)
 {
@@ -157,6 +160,9 @@ int pin_get_from_name(struct pinctrl_dev *pctldev, const char *name)
 
 	return -EINVAL;
 }
+#if IS_ENABLED(CONFIG_PINCTRL_SUNXI_DEBUGFS)
+EXPORT_SYMBOL_GPL(pin_get_from_name);
+#endif
 
 /**
  * pin_get_name_from_id() - look up a pin name from a pin id
@@ -176,6 +182,7 @@ const char *pin_get_name(struct pinctrl_dev *pctldev, const unsigned pin)
 
 	return desc->name;
 }
+EXPORT_SYMBOL_GPL(pin_get_name);
 
 /* Deletes a range of pin descriptors */
 static void pinctrl_free_pindescs(struct pinctrl_dev *pctldev,

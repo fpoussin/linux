@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 menuconfig RC_CORE
-	tristate "Remote Controller support"
+	bool "Remote Controller support"
 	depends on INPUT
 	help
 	  Enable support for Remote Controllers on Linux. This is
@@ -468,6 +468,26 @@ config IR_SUNXI
 	depends on ARCH_SUNXI || COMPILE_TEST
 	help
 	   Say Y if you want to use sunXi internal IR Controller
+
+	   To compile this driver as a module, choose M here: the module will
+	   be called sunxi-ir.
+
+config IR_RX_SUNXI
+	tristate "SUNXI IR RX remote control"
+	depends on RC_CORE
+	depends on ARCH_SUNXI || COMPILE_TEST
+	---help---
+	   Say Y if you want to use sunxi internal IR RX Controller
+
+	   To compile this driver as a module, choose M here: the module will
+	   be called sunxi-ir.
+
+config IR_TX_SUNXI
+	tristate "SUNXI IR TX remote control"
+	depends on RC_CORE
+	depends on ARCH_SUNXI || COMPILE_TEST
+	---help---
+	   Say Y if you want to use sunxi internal IR TX Controller
 
 	   To compile this driver as a module, choose M here: the module will
 	   be called sunxi-ir.

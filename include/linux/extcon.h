@@ -76,6 +76,11 @@
 #define EXTCON_DISP_VGA		43	/* Video Graphics Array */
 #define EXTCON_DISP_DP		44	/* Display Port */
 #define EXTCON_DISP_HMD		45	/* Head-Mounted Display */
+#define EXTCON_DISP_CVBS        46
+#define EXTCON_DISP_TVD         47
+#define EXTCON_DISP_EDP         48
+
+
 
 /* Miscellaneous external connector */
 #define EXTCON_DOCK		60
@@ -285,6 +290,11 @@ static inline struct extcon_dev *extcon_get_edev_by_phandle(struct device *dev,
 				int index)
 {
 	return ERR_PTR(-ENODEV);
+}
+
+static inline const char *extcon_get_edev_name(struct extcon_dev *edev)
+{
+	return NULL;
 }
 #endif /* CONFIG_EXTCON */
 

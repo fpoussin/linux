@@ -477,6 +477,14 @@ int device_bind_driver(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(device_bind_driver);
 
+#ifdef CONFIG_SUNXI_BOOTEVENT
+#include "../misc/sunxi-bootevent/bootevent.h"
+#else
+#define TIME_LOG_START()
+#define TIME_LOG_END()
+#define bootevent_probe(ts, dev, drv, probe)
+#endif
+
 static atomic_t probe_count = ATOMIC_INIT(0);
 static DECLARE_WAIT_QUEUE_HEAD(probe_waitqueue);
 
@@ -489,10 +497,25 @@ static void driver_deferred_probe_add_trigger(struct device *dev,
 		driver_deferred_probe_trigger();
 }
 
+static ssize_t state_synced_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	bool val;
+
+	device_lock(dev);
+	val = dev->state_synced;
+	device_unlock(dev);
+	return sprintf(buf, "%u\n", val);
+}
+static DEVICE_ATTR_RO(state_synced);
+
 static int really_probe(struct device *dev, struct device_driver *drv)
 {
 	int ret = -EPROBE_DEFER;
 	int local_trigger_count = atomic_read(&deferred_trigger_count);
+#ifdef CONFIG_SUNXI_BOOTEVENT
+	unsigned long long ts = 0;
+#endif
 	bool test_remove = IS_ENABLED(CONFIG_DEBUG_TEST_DRIVER_REMOVE) &&
 			   !drv->suppress_bind_attrs;
 
@@ -548,11 +571,17 @@ re_probe:
 	}
 
 	if (dev->bus->probe) {
+		TIME_LOG_START();
 		ret = dev->bus->probe(dev);
+		TIME_LOG_END();
+		bootevent_probe(ts, dev, drv, (unsigned long)dev->bus->probe);
 		if (ret)
 			goto probe_failed;
 	} else if (drv->probe) {
+		TIME_LOG_START();
 		ret = drv->probe(dev);
+		TIME_LOG_END();
+		bootevent_probe(ts, dev, drv, (unsigned long)drv->probe);
 		if (ret)
 			goto probe_failed;
 	}
@@ -562,9 +591,16 @@ re_probe:
 		goto dev_groups_failed;
 	}
 
+	if (dev_has_sync_state(dev) &&
+	    device_create_file(dev, &dev_attr_state_synced)) {
+		dev_err(dev, "state_synced sysfs add failed\n");
+		goto dev_sysfs_state_synced_failed;
+	}
+
 	if (test_remove) {
 		test_remove = false;
 
+		device_remove_file(dev, &dev_attr_state_synced);
 		device_remove_groups(dev, drv->dev_groups);
 
 		if (dev->bus->remove)
@@ -594,6 +630,8 @@ re_probe:
 		 drv->bus->name, __func__, dev_name(dev), drv->name);
 	goto done;
 
+dev_sysfs_state_synced_failed:
+	device_remove_groups(dev, drv->dev_groups);
 dev_groups_failed:
 	if (dev->bus->remove)
 		dev->bus->remove(dev);
@@ -1131,6 +1169,7 @@ static void __device_release_driver(struct device *dev, struct device *parent)
 
 		pm_runtime_put_sync(dev);
 
+		device_remove_file(dev, &dev_attr_state_synced);
 		device_remove_groups(dev, drv->dev_groups);
 
 		if (dev->bus && dev->bus->remove)
