@@ -4402,6 +4402,7 @@ void *__kmalloc_track_caller(size_t size, gfp_t gfpflags, unsigned long caller)
 
 	return ret;
 }
+EXPORT_SYMBOL(__kmalloc_track_caller);
 
 #ifdef CONFIG_NUMA
 void *__kmalloc_node_track_caller(size_t size, gfp_t gfpflags,
@@ -4432,6 +4433,7 @@ void *__kmalloc_node_track_caller(size_t size, gfp_t gfpflags,
 
 	return ret;
 }
+EXPORT_SYMBOL(__kmalloc_node_track_caller);
 #endif
 
 #ifdef CONFIG_SYSFS
@@ -4681,6 +4683,7 @@ static int list_locations(struct kmem_cache *s, char *buf,
 	int node;
 	struct kmem_cache_node *n;
 	unsigned long *map = bitmap_alloc(oo_objects(s->max), GFP_KERNEL);
+	bool print_buf = false;
 
 	if (!map || !alloc_loc_track(&t, PAGE_SIZE / sizeof(struct location),
 				     GFP_KERNEL)) {
@@ -4708,8 +4711,11 @@ static int list_locations(struct kmem_cache *s, char *buf,
 	for (i = 0; i < t.count; i++) {
 		struct location *l = &t.loc[i];
 
-		if (len > PAGE_SIZE - KSYM_SYMBOL_LEN - 100)
-			break;
+		if (len > PAGE_SIZE - KSYM_SYMBOL_LEN - 100) {
+			print_buf = true;
+			pr_err("%s\n", buf);
+			len = 0;
+		}
 		len += sprintf(buf + len, "%7ld ", l->count);
 
 		if (l->addr)
@@ -4747,6 +4753,12 @@ static int list_locations(struct kmem_cache *s, char *buf,
 					 nodemask_pr_args(&l->nodes));
 
 		len += sprintf(buf + len, "\n");
+	}
+	if (print_buf) {
+		pr_info("%s\n", buf);
+		len = sprintf(buf, "sysfs node buffer size is PAGE_SIZE.");
+		len += sprintf(buf + len, "The message is more than 1 page.\n");
+		len += sprintf(buf + len, "Please get the message by kmsg\n");
 	}
 
 	free_loc_track(&t);

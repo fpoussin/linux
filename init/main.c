@@ -526,14 +526,16 @@ static void __init report_meminit(void)
 {
 	const char *stack;
 
-	if (IS_ENABLED(CONFIG_INIT_STACK_ALL))
-		stack = "all";
+	if (IS_ENABLED(CONFIG_INIT_STACK_ALL_PATTERN))
+		stack = "all(pattern)";
+	else if (IS_ENABLED(CONFIG_INIT_STACK_ALL_ZERO))
+		stack = "all(zero)";
 	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF_ALL))
-		stack = "byref_all";
+		stack = "byref_all(zero)";
 	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF))
-		stack = "byref";
+		stack = "byref(zero)";
 	else if (IS_ENABLED(CONFIG_GCC_PLUGIN_STRUCTLEAK_USER))
-		stack = "__user";
+		stack = "__user(zero)";
 	else
 		stack = "off";
 
@@ -928,18 +930,32 @@ static inline void do_trace_initcall_finish(initcall_t fn, int ret)
 }
 #endif /* !TRACEPOINTS_ENABLED */
 
+#ifdef CONFIG_SUNXI_BOOTEVENT
+#include "../drivers/misc/sunxi-bootevent/bootevent.h"
+#else
+#define TIME_LOG_START()
+#define TIME_LOG_END()
+#define bootevent_initcall(fn, ts)
+#endif
+
 int __init_or_module do_one_initcall(initcall_t fn)
 {
 	int count = preempt_count();
 	char msgbuf[64];
 	int ret;
 
+#ifdef CONFIG_SUNXI_BOOTEVENT
+       unsigned long long ts = 0;
+#endif
+
 	if (initcall_blacklisted(fn))
 		return -EPERM;
 
+	TIME_LOG_START();
 	do_trace_initcall_start(fn);
 	ret = fn();
 	do_trace_initcall_finish(fn, ret);
+	TIME_LOG_END();
 
 	msgbuf[0] = 0;
 
@@ -952,6 +968,7 @@ int __init_or_module do_one_initcall(initcall_t fn)
 		local_irq_enable();
 	}
 	WARN(msgbuf[0], "initcall %pS returned with %s\n", fn, msgbuf);
+	bootevent_initcall(fn, ts);
 
 	add_latent_entropy();
 	return ret;
@@ -1127,6 +1144,11 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	rcu_end_inkernel_boot();
+
+#ifdef CONFIG_SUNXI_BOOTEVENT
+	log_boot("Kernel_init_done");
+	pr_err("Kernel init done\n");
+#endif
 
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);

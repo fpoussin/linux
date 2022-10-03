@@ -128,12 +128,20 @@ config RDA_TIMER
 	  Enables the support for the RDA Micro timer driver.
 
 config SUN4I_TIMER
-	bool "Sun4i timer driver" if COMPILE_TEST
+	bool "Sun4i timer driver"
 	depends on HAS_IOMEM
 	select CLKSRC_MMIO
 	select TIMER_OF
 	help
 	  Enables support for the Sun4i timer.
+
+config SUN50I_TIMER
+	bool "Sun50i timer driver"
+	depends on HAS_IOMEM
+	select CLKSRC_MMIO
+	select TIMER_OF
+	help
+	  Enables support for the Sun50i timer.
 
 config SUN5I_HSTIMER
 	bool "Sun5i timer driver" if COMPILE_TEST
@@ -141,6 +149,16 @@ config SUN5I_HSTIMER
 	depends on COMMON_CLK
 	help
 	  Enables support the Sun5i timer.
+
+config SUNXI_TIMER
+	tristate "Sunxi timer driver"
+	depends on GENERIC_CLOCKEVENTS
+	depends on HAS_IOMEM
+	select CLKSRC_MMIO
+	help
+	  Enables support for the Sunxi timer.
+
+source "drivers/clocksource/timer_test/Kconfig"
 
 config TEGRA_TIMER
 	bool "Tegra timer driver" if COMPILE_TEST
@@ -474,7 +492,7 @@ config SYS_SUPPORTS_SH_CMT
         bool
 
 config MTK_TIMER
-	bool "Mediatek timer driver" if COMPILE_TEST
+	bool "Mediatek timer driver"
 	depends on HAS_IOMEM
 	select TIMER_OF
 	select CLKSRC_MMIO
@@ -482,7 +500,7 @@ config MTK_TIMER
 	  Support for Mediatek timer driver.
 
 config SPRD_TIMER
-	bool "Spreadtrum timer driver" if EXPERT
+	tristate "Spreadtrum timer driver" if EXPERT
 	depends on HAS_IOMEM
 	depends on (ARCH_SPRD || COMPILE_TEST)
 	default ARCH_SPRD

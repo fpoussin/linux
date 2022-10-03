@@ -25,6 +25,8 @@
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
 
+#include <trace/events/readahead.h>//jiangbin add for treadahead
+
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
 	.read_iter	= generic_file_read_iter,
@@ -441,7 +443,7 @@ ssize_t kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
 	set_fs(old_fs);
 	return result;
 }
-EXPORT_SYMBOL(kernel_read);
+EXPORT_SYMBOL_NS(kernel_read, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
@@ -453,6 +455,13 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 		return -EINVAL;
 	if (unlikely(!access_ok(buf, count)))
 		return -EFAULT;
+	/*AW_CODE;jiangbin,add trace for readahead)*/
+	if (S_ISREG(file->f_path.dentry->d_inode->i_mode) &&
+		MAJOR(file->f_path.dentry->d_inode->i_sb->s_dev)) {
+		unsigned long ulpos = (unsigned long)*pos;
+		trace_do_fs_read(file->f_path.dentry->d_inode, ulpos, count);
+	}
+	/*end*/
 
 	ret = rw_verify_area(READ, file, pos, count);
 	if (!ret) {
@@ -537,7 +546,7 @@ ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 
 	return res;
 }
-EXPORT_SYMBOL(kernel_write);
+EXPORT_SYMBOL_NS(kernel_write, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
 {
